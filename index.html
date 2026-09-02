@@ -856,10 +856,20 @@ function storeName(r){
 function dayTotals(receipts){
   var sales=0, cash=0, credit=0, paidCredit=0, returns=0;
   receipts.forEach(function(r){
-    var total = receiptTotal(r);
-    sales += total;
-    if(r.settlement === "cash") cash += total;
-    else credit += total;
+    // "Sales Total" is the GROSS amount actually invoiced -- the same
+    // "Amount Due for Delivery" figure printed on that stop's Delivery
+    // Invoice, before any Return Credit is applied. It deliberately does
+    // NOT subtract returns, so it ties out to the sum of the invoices
+    // actually handed to stores that day/week. Cash/Credit below are the
+    // real money owed/collected per stop, which *is* net of that stop's
+    // return credit (receiptTotal) -- so the reconciling identity is
+    // Sales Total - Returns = Cash + Credit, matching the paper Route
+    // Sales form's own arithmetic.
+    var gross = receiptSubtotal(r) + (Number(r.tax)||0);
+    var net = receiptTotal(r);
+    sales += gross;
+    if(r.settlement === "cash") cash += net;
+    else credit += net;
     paidCredit += Number(r.paidCredit)||0;
     returns += receiptTotalReturns(r);
   });
@@ -1634,8 +1644,16 @@ function renderPdfBlob(bodyHtml, geom){
         // orientation explicitly, matching the actual shape, avoids that swap.
         var orientation = geom.widthIn >= pageHeightIn ? "landscape" : "portrait";
         var pdf = new JsPdf({ unit: "in", orientation: orientation, format: [geom.widthIn, pageHeightIn] });
-        var imgData = canvas.toDataURL("image/png");
-        pdf.addImage(imgData, "PNG", geom.marginXIn, geom.marginYIn, contentWidthIn, contentHeightIn);
+        // JPEG instead of PNG: the capture is plain black text/lines on a
+        // solid white background (backgroundColor:"#ffffff" above, no
+        // transparency to lose), which is exactly the case where a lossless
+        // PNG wastes the most space -- every antialiased text edge is a run
+        // of unique pixel values that PNG's DEFLATE can't compress well.
+        // JPEG at a high quality is visually indistinguishable here but
+        // routinely cuts these multi-page PDFs down to a fraction of the
+        // PNG size.
+        var imgData = canvas.toDataURL("image/jpeg", 0.92);
+        pdf.addImage(imgData, "JPEG", geom.marginXIn, geom.marginYIn, contentWidthIn, contentHeightIn);
         resolve(pdf.output("blob"));
       }).catch(function(err){ cleanup(); reject(err); });
     }, 60);
@@ -1688,7 +1706,13 @@ function deliverPdfBlob(blob, filename){
     try{ file = new File([blob], filename, { type: "application/pdf" }); }catch(e){}
     if(file && navigator.canShare && navigator.canShare({ files: [file] })){
       // iOS's native share sheet -- "Save to Files" is right there, one tap.
-      navigator.share({ files: [file], title: filename }).then(function(){
+      // Deliberately NOT passing a "title" alongside "files" here: iOS's
+      // share sheet can treat that combination as two separate share items
+      // (the file, plus a second plain-text item carrying the title), which
+      // is what was showing up in Files as a stray ".txt" containing just
+      // the PDF's filename. The file's own name already carries this info,
+      // so title adds nothing and isn't worth that risk.
+      navigator.share({ files: [file] }).then(function(){
         toast("Shared " + filename);
       }).catch(function(){ /* user backed out of the share sheet -- not an error */ });
       return;
@@ -2398,15 +2422,30 @@ async function tryDownload(filenameBase, jsonData, csvData){
   if(claudeApi && claudeApi.use){
     try{ downloads = await claudeApi.use("downloads"); }catch(e){ downloads = null; }
   }
-  var savedCsv = false, savedJson = false;
+  var savedJson = false, savedCsv = false;
+  // JSON first, in both delivery paths below -- it's the one "Restore from
+  // backup" actually needs (see btnRestore). If only one file of the pair
+  // ends up actually saved, it should be this one, not the CSV.
   if(downloads){
-    try{ await downloads.save({filename: filenameBase+".csv", data: csvData}); savedCsv = true; }catch(e){}
     try{ await downloads.save({filename: filenameBase+".json", data: jsonData}); savedJson = true; }catch(e){}
+    try{ await downloads.save({filename: filenameBase+".csv", data: csvData}); savedCsv = true; }catch(e){}
   }
-  if(!savedCsv) savedCsv = downloadFile(filenameBase + ".csv", csvData, "text/csv");
+  // Real bug found here: Safari (and some other mobile browsers) silently
+  // drop the second of two auto-triggered <a download> clicks fired
+  // back-to-back in the same tick -- no exception, no rejected promise,
+  // nothing for downloadFile()'s try/catch to see, so this function had no
+  // way to know the second file never actually reached Files. That's
+  // exactly how a real backup went missing: the app confidently reported
+  // "Saved racine-route-backup-....csv and .json" and only the .csv ever
+  // showed up on disk. A real pause between the two clicks is the
+  // standard, browser-respected fix -- so give it one.
   if(!savedJson) savedJson = downloadFile(filenameBase + ".json", jsonData, "application/json");
-  if(savedCsv && savedJson){ toast("Saved " + filenameBase + ".csv and .json"); return; }
-  if(savedCsv || savedJson){ toast("Saved " + filenameBase + (savedCsv ? ".csv" : ".json") + " only — the other didn't go through"); return; }
+  if(!savedCsv){
+    await new Promise(function(resolve){ setTimeout(resolve, 700); });
+    savedCsv = downloadFile(filenameBase + ".csv", csvData, "text/csv");
+  }
+  if(savedJson && savedCsv){ toast("Saved " + filenameBase + ".json and .csv"); return; }
+  if(savedJson || savedCsv){ toast("Saved " + filenameBase + (savedJson ? ".json" : ".csv") + " only — the other didn't go through"); return; }
   showBackupFallback(filenameBase, jsonData, csvData);
 }
 

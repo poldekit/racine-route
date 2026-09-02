@@ -12,7 +12,7 @@
 //
 // Bump CACHE_NAME whenever the app-shell file list changes, so returning
 // devices pick up the new set instead of serving a stale mix.
-var CACHE_NAME = "racine-route-shell-v1";
+var CACHE_NAME = "racine-route-shell-v2";
 var SHELL_FILES = [
   "./",
   "./index.html",
