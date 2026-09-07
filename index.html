@@ -104,7 +104,13 @@ body{
   min-height:100vh;
   padding-bottom:88px;
 }
-h1,h2,h3{font-family:'Fraunces', Georgia, serif; text-wrap:balance; margin:0;}
+/* Headings, stat-tile numbers, and grand-total lines used to render in
+   Fraunces (a decorative serif) while every label/value around them uses
+   Public Sans -- a jarring mismatch on screens like "Sales Total" or a
+   history day's date title sitting right next to plain-sans labels.
+   Unified to Public Sans everywhere in the app UI; Fraunces is kept only
+   where it always meant "brand", the "Racine Route" wordmark. */
+h1,h2,h3{font-family:'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif; font-weight:700; text-wrap:balance; margin:0;}
 button{font-family:inherit;}
 input,select,textarea{font-family:inherit;}
 .tabular{font-variant-numeric:tabular-nums;}
@@ -151,7 +157,7 @@ input,select,textarea{font-family:inherit;}
   background:var(--bg-elev); border:1px solid var(--line-soft); border-radius:var(--radius-sm);
   padding:10px 8px; text-align:center;
 }
-.stat-tile .v{font-family:'Fraunces',serif; font-weight:600; font-size:18px; display:block;}
+.stat-tile .v{font-family:'Public Sans',sans-serif; font-weight:700; font-size:18px; display:block;}
 .stat-tile .l{font-size:10px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.06em; font-weight:700; margin-top:2px; display:block;}
 @media (max-width:380px){ .stat-row{grid-template-columns:repeat(2,1fr);} }
 
@@ -207,6 +213,13 @@ input,select,textarea{font-family:inherit;}
   width:36px; height:36px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
 }
 .icon-btn:active{transform:scale(.94);}
+/* Icon button with a visible text label alongside the icon -- used where an
+   icon-only square (esp. "back" and "delete") was easy to mistake for a
+   decorative/blank element rather than a tappable control. */
+.icon-btn.icon-btn-labeled{
+  width:auto; padding:0 14px 0 10px; gap:6px; font-size:13px; font-weight:600;
+}
+.icon-btn.icon-btn-labeled svg{width:17px; height:17px; flex:none;}
 
 .fab{
   position:fixed; right:20px; bottom:96px; z-index:30;
@@ -270,7 +283,7 @@ input,select,textarea{font-family:inherit;}
 
 .totals-box{background:var(--bg-sunken); border-radius:var(--radius-sm); padding:12px 14px; margin-top:12px;}
 .totals-line{display:flex; justify-content:space-between; font-size:13.5px; padding:3px 0;}
-.totals-line.grand{font-size:18px; font-weight:800; font-family:'Fraunces',serif; padding-top:8px; margin-top:4px; border-top:1px solid var(--line);}
+.totals-line.grand{font-size:18px; font-weight:800; font-family:'Public Sans',sans-serif; padding-top:8px; margin-top:4px; border-top:1px solid var(--line);}
 
 /* summary tables */
 .summary-table{width:100%; border-collapse:collapse; margin-bottom:4px;}
@@ -297,7 +310,21 @@ input,select,textarea{font-family:inherit;}
 .overlay.active{display:block;}
 .overlay-header{
   position:sticky; top:0; background:var(--bg); z-index:2; display:flex; align-items:center; gap:10px;
-  padding:14px 16px; border-bottom:1px solid var(--line-soft);
+  /* Extra top/left clearance beyond the usual 14px/16px: on an iPad running
+     this as a floating/windowed app (Stage Manager, Split View, etc.), iOS
+     draws its own drag-handle/window-control dots directly over the very
+     top-left corner of the page -- which is exactly where a bare "Back"
+     icon button sits, partially covering it and making it awkward to tap.
+     Padding the header down and in on iPad keeps Back clear of that
+     regardless of which multitasking mode the page happens to be in
+     (there's no reliable way to detect that from web content, so this is
+     a fixed safety margin rather than a precise measurement). Phones are
+     unaffected -- iOS never overlays a Home Screen web app that way there. */
+  padding:14px 16px;
+  border-bottom:1px solid var(--line-soft);
+}
+@media (min-width:700px){
+  .overlay-header{ padding-top:30px; padding-left:32px; }
 }
 .overlay-header h2{flex:1; font-size:18px;}
 .overlay-body{padding:16px; max-width:640px; margin:0 auto;}
@@ -375,7 +402,7 @@ input,select,textarea{font-family:inherit;}
   #printArea.fmt-letter .L-addr{font-size:9.5pt; color:#4a3a2c; margin-top:6px; line-height:1.55;}
   #printArea.fmt-letter .L-doctitle{text-align:right; flex:none;}
   #printArea.fmt-letter .L-doctitle .t{font-family:Georgia,'Times New Roman',serif; font-size:15pt; font-weight:600; text-transform:uppercase; letter-spacing:.04em;}
-  #printArea.fmt-letter .L-doctitle .n{font-size:10.5pt; color:#4a3a2c; margin-top:5px;}
+  #printArea.fmt-letter .L-doctitle .n{font-size:12pt; font-weight:700; color:#1a1208; margin-top:5px;}
   #printArea.fmt-letter .L-meta{display:flex; gap:30px; margin-bottom:18px; font-size:10.5pt;}
   #printArea.fmt-letter .L-meta b{display:block; font-size:8.2pt; text-transform:uppercase; letter-spacing:.05em; color:#5c4a35; font-weight:700; margin-bottom:3px;}
   #printArea.fmt-letter table.L-items{width:100%; border-collapse:collapse; margin-bottom:18px;}
@@ -412,7 +439,7 @@ input,select,textarea{font-family:inherit;}
   #printArea.fmt-letter .split-col .L-brand{ font-size:13.5pt; }
   #printArea.fmt-letter .split-col .L-addr{ font-size:6.6pt; margin-top:3px; line-height:1.4; }
   #printArea.fmt-letter .split-col .L-doctitle .t{ font-size:9pt; }
-  #printArea.fmt-letter .split-col .L-doctitle .n{ font-size:7.5pt; margin-top:2px; }
+  #printArea.fmt-letter .split-col .L-doctitle .n{ font-size:8.5pt; font-weight:700; margin-top:2px; }
   #printArea.fmt-letter .split-col .L-meta{ gap:10px; margin-bottom:10px; font-size:7pt; flex-wrap:wrap; }
   #printArea.fmt-letter .split-col .L-meta b{ font-size:6.2pt; margin-bottom:1px; }
   #printArea.fmt-letter .split-col table.L-items{ margin-bottom:10px; }
@@ -572,9 +599,9 @@ input,select,textarea{font-family:inherit;}
   <!-- ===== RECEIPT EDITOR (overlay) ===== -->
   <div class="overlay" id="overlay-receipt">
     <div class="overlay-header">
-      <button class="icon-btn" id="btnCloseReceipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button class="icon-btn icon-btn-labeled" id="btnCloseReceipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>Back</button>
       <h2 id="receiptEditorTitle">New Receipt</h2>
-      <button class="icon-btn btn-danger" id="btnDeleteReceipt" title="Delete" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-8 0v12a1 1 0 001 1h6a1 1 0 001-1V7"/></svg></button>
+      <button class="icon-btn icon-btn-labeled btn-danger" id="btnDeleteReceipt" title="Delete" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-8 0v12a1 1 0 001 1h6a1 1 0 001-1V7"/></svg>Delete</button>
     </div>
     <div class="overlay-body">
 
@@ -605,6 +632,10 @@ input,select,textarea{font-family:inherit;}
       <div class="divider"></div>
       <div class="subhead" style="display:flex; justify-content:space-between; align-items:baseline;"><span>Items returned</span><span class="section-sub" style="margin:0;" id="rReturnedCount">0 items</span></div>
       <div class="section-sub" style="margin:-6px 2px 10px;">A separate list from what's above &mdash; use it for anything sent back today, whether or not it was part of this delivery.</div>
+      <div class="section-sub" style="margin:-2px 2px 10px; display:flex; align-items:baseline; gap:10px;" id="rReturnCreditNoWrap">
+        <span style="font-family:'IBM Plex Mono',monospace;" id="rReturnCreditNo"></span>
+        <button type="button" class="btn-link-sm" id="btnEditReturnCreditNo" style="background:none; border:none; padding:0; font-size:12px; color:var(--brick); text-decoration:underline; cursor:pointer;">Edit #</button>
+      </div>
       <input type="text" class="item-search" id="rRetSearch" placeholder="Search items&hellip;" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg-elev); font-size:14px;">
       <div class="item-rows" id="rRetItemRows"></div>
       <button class="btn btn-ghost btn-sm" id="btnAddRetCustomLine" style="margin-top:10px;">+ Add one-off item</button>
@@ -673,7 +704,7 @@ input,select,textarea{font-family:inherit;}
   <!-- ===== HISTORY DAY VIEW (overlay, read-only) ===== -->
   <div class="overlay" id="overlay-history">
     <div class="overlay-header">
-      <button class="icon-btn" id="btnCloseHistory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button class="icon-btn icon-btn-labeled" id="btnCloseHistory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>Back</button>
       <h2 id="historyDayTitle">Route Day</h2>
     </div>
     <div class="overlay-body">
@@ -708,7 +739,13 @@ var BAKERY = {
   addr1: "6216 South Archer Avenue",
   addr2: "Chicago, Illinois 60638",
   phone: "Telephone: 773-581-8500",
-  phone2: "773-581-8501  •  Fax: 773-581-2258"
+  phone2: "773-581-8501",
+  // Kept as its own line (see every "BAKERY.phone3" usage below) rather
+  // than tacked onto phone2 with a bullet -- on the narrower split-column
+  // Delivery Invoice / Return Credit layout that line didn't have room for
+  // "773-581-8501  •  Fax: 773-581-2258" and it wrapped mid-number, right
+  // after "Fax: 773-".
+  phone3: "Fax: 773-581-2258"
 };
 
 // The masthead logo, cut from Racine's own letterhead (the arch/lion medallion,
@@ -792,6 +829,13 @@ function defaultState(){
 // across the whole route even though each device counts on its own.
 function invoiceLabel(no){
   return (state.invoicePrefix||"") + no;
+}
+// The Return Credit slip's own number -- same as the Delivery Invoice's
+// unless a driver overrode it via "Edit #" under Items returned (some
+// receiving departments require the two documents to carry different
+// numbers).
+function returnCreditLabel(r){
+  return invoiceLabel(r.returnCreditNo != null ? r.returnCreditNo : r.invoiceNo);
 }
 
 var state = loadState();
@@ -1033,6 +1077,18 @@ var draftInvoiceNo = null; // editable via the "Edit #" link -- lets a driver
   // already left with a store, or to avoid a collision after re-entering a
   // receipt lost to a technical issue) instead of always taking whatever
   // the auto-counter assigns.
+var draftReturnCreditNo = null; // null = "same number as the Delivery
+  // Invoice" (the normal case). Some receiving departments (e.g. Tony's FM
+  // Belmont) insist the Return Credit slip carry its own distinct
+  // number -- this lets a driver set one via its own "Edit #" link, without
+  // touching the real invoice-number counter (it's a note number, not a
+  // newly issued invoice, so nothing else needs to know about it or avoid
+  // colliding with it automatically -- same as the manual workaround Paul
+  // was already doing on paper).
+function refreshReturnCreditNoDisplay(){
+  var no = draftReturnCreditNo != null ? draftReturnCreditNo : draftInvoiceNo;
+  document.getElementById("rReturnCreditNo").textContent = "Return Credit #" + invoiceLabel(no);
+}
 
 function openReceiptEditor(id){
   editingId = id;
@@ -1065,6 +1121,8 @@ function openReceiptEditor(id){
     document.getElementById("rDate").value = r.date;
     draftInvoiceNo = r.invoiceNo;
     document.getElementById("rInvoiceNo").textContent = "Invoice #" + invoiceLabel(draftInvoiceNo);
+    draftReturnCreditNo = (r.returnCreditNo != null) ? r.returnCreditNo : null;
+    refreshReturnCreditNoDisplay();
     (r.lines||[]).forEach(function(l){
       if(l.itemId){ draftLines[l.itemId] = {qty:l.qty, price:l.price, name:l.name}; }
       else { draftCustom.push({id:uid(), name:l.name, qty:l.qty, price:l.price}); }
@@ -1092,6 +1150,8 @@ function openReceiptEditor(id){
     document.getElementById("rDate").value = state.today.date;
     draftInvoiceNo = state.nextInvoiceNo;
     document.getElementById("rInvoiceNo").textContent = "Invoice #" + invoiceLabel(draftInvoiceNo);
+    draftReturnCreditNo = null;
+    refreshReturnCreditNoDisplay();
     document.getElementById("rTax").value = 0;
     setSettle("cash");
     document.getElementById("rAckName").value = "";
@@ -1204,6 +1264,23 @@ document.getElementById("btnEditInvoiceNo").addEventListener("click", function()
     if(!no) return;
     draftInvoiceNo = Math.round(no);
     document.getElementById("rInvoiceNo").textContent = "Invoice #" + invoiceLabel(draftInvoiceNo);
+    refreshReturnCreditNoDisplay(); // it falls back to this number when not overridden
+  }, "Save");
+});
+
+document.getElementById("btnEditReturnCreditNo").addEventListener("click", function(){
+  var current = draftReturnCreditNo != null ? draftReturnCreditNo : draftInvoiceNo;
+  promptModal("Edit Return Credit number", [
+    {key:"no", label:"Return Credit number" + (state.invoicePrefix ? " (after the \"" + state.invoicePrefix + "\" prefix)" : "") + " — for stores that want a separate number from the Delivery Invoice", type:"number", value:current}
+  ], function(no){
+    if(!no) return;
+    var n = Math.round(no);
+    // Setting it back to exactly the invoice number is treated the same as
+    // "no override" -- it'll keep tracking the invoice number automatically
+    // if that's later edited too, instead of freezing at whatever it
+    // happened to match today.
+    draftReturnCreditNo = (n === draftInvoiceNo) ? null : n;
+    refreshReturnCreditNoDisplay();
   }, "Save");
 });
 
@@ -1334,7 +1411,16 @@ function initSigCanvas(){
   canvas.onpointerdown = start; canvas.onpointermove=move; canvas.onpointerup=end; canvas.onpointerleave=end;
 }
 document.getElementById("btnClearSig").addEventListener("click", function(){
+  // initSigCanvas() has a "preserve an in-progress signature across
+  // re-init" step at its very top that re-snapshots whatever is CURRENTLY
+  // drawn on the canvas back into pendingSig, guarded by sigHasDrawing.
+  // Clear was only resetting pendingSig, not sigHasDrawing -- so that
+  // preserve step immediately re-captured the old signature before the
+  // canvas got wiped, and initSigCanvas then redrew it right back. That's
+  // why Clear looked like it did nothing. Resetting sigHasDrawing here too
+  // makes initSigCanvas skip that snapshot and actually start blank.
   pendingSig=null;
+  sigHasDrawing=false;
   initSigCanvas();
 });
 
@@ -1374,6 +1460,12 @@ function buildReceiptFromForm(){
     // already left with a store, or to avoid a collision when re-entering
     // a receipt after a technical issue.
     invoiceNo: draftInvoiceNo != null ? draftInvoiceNo : (existing ? existing.invoiceNo : state.nextInvoiceNo),
+    // null = "same as invoiceNo, always" -- only set when the driver used
+    // "Edit #" under Items returned to give the Return Credit slip its own
+    // number. Deliberately NOT run through the invoice-number
+    // collision/counter logic below -- it's a note number some receiving
+    // departments want, not a newly issued invoice.
+    returnCreditNo: draftReturnCreditNo,
     storeId: storeId,
     storeName: sName,
     date: document.getElementById("rDate").value || state.today.date,
@@ -1765,7 +1857,8 @@ function openPrintChoice(kind, payload){
       '<button class="btn btn-secondary btn-block" id="pcLetter" style="justify-content:space-between;"><span>Full Page</span><span style="font-weight:400; font-size:12px;">Letter &middot; ' + escapeHtml(names.letter) + '</span></button>' +
       '<button class="btn btn-ghost btn-block" id="pcPdf" style="justify-content:space-between;"><span>Save as PDF</span><span style="font-weight:400; font-size:12px;">No printer needed</span></button>' +
     '</div>' +
-    '<div class="section-sub" style="margin:12px 2px 0;">Printer names come from Settings, in case you swap hardware.</div>';
+    '<div class="section-sub" style="margin:12px 2px 0;">4&Prime; Roll and Full Page both save a PDF backup automatically before printing &mdash; Save as PDF is for a PDF with no physical print.</div>' +
+    '<div class="section-sub" style="margin:6px 2px 0;">Printer names come from Settings, in case you swap hardware.</div>';
   document.getElementById("pcFourIn").onclick = function(){ closeModal(); runPrint(kind, payload, "4in"); };
   document.getElementById("pcLetter").onclick = function(){ closeModal(); runPrint(kind, payload, "letter"); };
   document.getElementById("pcPdf").onclick = function(){ closeModal(); saveAsPdf(kind, payload); };
@@ -1773,9 +1866,27 @@ function openPrintChoice(kind, payload){
 }
 
 function runPrint(kind, payload, format){
-  if(kind==="receipt") printReceipt(payload, format);
-  else if(kind==="weekly") printWeeklySummary(payload.range, payload.driver, payload.days, payload.receipts, format);
-  else printSummary(payload.date, payload.driver, payload.receipts, format);
+  // Every physical print -- whichever printer it's actually going to --
+  // now auto-saves a PDF backup first. This is a hard-copy digital record
+  // that exists independent of the printer: it survives a jam, an offline
+  // printer, or (for a printer like the Phomemo that has no real driver-
+  // level printing at all) is the ONLY thing that ever gets handed to that
+  // printer's own app in the first place. It's always built at the same
+  // Letter-page geometry regardless of which physical format (4" Roll or
+  // Full Page) was actually chosen here -- it's the backup record, not the
+  // thing being sent to the printer, so it doesn't need to match.
+  //
+  // Fired first, with a short pause before the actual print call: the same
+  // reason the "Export full backup" fix needed one earlier -- iOS Safari
+  // can silently drop the second of two back-to-back download/share
+  // actions if they fire in the same tick, and this is exactly that
+  // shape (one save action immediately followed by another).
+  saveAsPdf(kind, payload);
+  setTimeout(function(){
+    if(kind==="receipt") printReceipt(payload, format);
+    else if(kind==="weekly") printWeeklySummary(payload.range, payload.driver, payload.days, payload.receipts, format);
+    else printSummary(payload.date, payload.driver, payload.receipts, format);
+  }, 700);
 }
 
 /* ============================================================
@@ -1883,7 +1994,7 @@ function buildReceipt4inHtml(r){
 
   return (
     '<div class="p-center">' + printLogoImg('p-logo') + '<div class="p-name">' + escapeHtml(BAKERY.name) + '</div>' +
-    '<div class="p-addr">' + escapeHtml(BAKERY.addr1) + '<br>' + escapeHtml(BAKERY.addr2) + '<br>' + escapeHtml(BAKERY.phone) + '<br>' + escapeHtml(BAKERY.phone2) + '</div></div>' +
+    '<div class="p-addr">' + escapeHtml(BAKERY.addr1) + '<br>' + escapeHtml(BAKERY.addr2) + '<br>' + escapeHtml(BAKERY.phone) + '<br>' + escapeHtml(BAKERY.phone2) + '<br>' + escapeHtml(BAKERY.phone3) + '</div></div>' +
     '<hr class="p-rule solid">' +
     '<div class="p-row"><span><b>Sold To:</b> ' + escapeHtml(storeName(r)) + '</span></div>' +
     '<div class="p-row"><span>Date: ' + escapeHtml(fmtDate(r.date)) + '</span><span>Inv #' + invoiceLabel(r.invoiceNo) + '</span></div>' +
@@ -1932,7 +2043,7 @@ function buildDeliveryOnlyLetterHtml(r){
 
   return (
     '<div class="L-head">' +
-      '<div><div class="L-brandrow">' + printLogoImg('L-logo') + '<div class="L-brand">' + escapeHtml(BAKERY.name) + '</div></div><div class="L-addr">' + escapeHtml(BAKERY.addr1) + '<br>' + escapeHtml(BAKERY.addr2) + '<br>' + escapeHtml(BAKERY.phone) + ' &nbsp;&middot;&nbsp; ' + escapeHtml(BAKERY.phone2) + '</div></div>' +
+      '<div><div class="L-brandrow">' + printLogoImg('L-logo') + '<div class="L-brand">' + escapeHtml(BAKERY.name) + '</div></div><div class="L-addr">' + escapeHtml(BAKERY.addr1) + '<br>' + escapeHtml(BAKERY.addr2) + '<br>' + escapeHtml(BAKERY.phone) + ' &nbsp;&middot;&nbsp; ' + escapeHtml(BAKERY.phone2) + '<br>' + escapeHtml(BAKERY.phone3) + '</div></div>' +
       '<div class="L-doctitle"><div class="t">Delivery Invoice</div><div class="n">Invoice #' + invoiceLabel(r.invoiceNo) + '</div></div>' +
     '</div>' +
     '<div class="L-meta"><div><b>Sold To</b>' + escapeHtml(storeName(r)) + '</div><div><b>Date</b>' + escapeHtml(fmtDate(r.date)) + '</div><div><b>Driver</b>' + escapeHtml(state.driver||"—") + '</div></div>' +
@@ -1953,8 +2064,8 @@ function buildReturnCreditLetterHtml(r){
 
   return (
     '<div class="L-head">' +
-      '<div><div class="L-brandrow">' + printLogoImg('L-logo') + '<div class="L-brand">' + escapeHtml(BAKERY.name) + '</div></div><div class="L-addr">' + escapeHtml(BAKERY.addr1) + '<br>' + escapeHtml(BAKERY.addr2) + '<br>' + escapeHtml(BAKERY.phone) + ' &nbsp;&middot;&nbsp; ' + escapeHtml(BAKERY.phone2) + '</div></div>' +
-      '<div class="L-doctitle"><div class="t">Return Credit</div><div class="n">Ref: Invoice #' + invoiceLabel(r.invoiceNo) + '</div></div>' +
+      '<div><div class="L-brandrow">' + printLogoImg('L-logo') + '<div class="L-brand">' + escapeHtml(BAKERY.name) + '</div></div><div class="L-addr">' + escapeHtml(BAKERY.addr1) + '<br>' + escapeHtml(BAKERY.addr2) + '<br>' + escapeHtml(BAKERY.phone) + ' &nbsp;&middot;&nbsp; ' + escapeHtml(BAKERY.phone2) + '<br>' + escapeHtml(BAKERY.phone3) + '</div></div>' +
+      '<div class="L-doctitle"><div class="t">Return Credit</div><div class="n">Credit #' + returnCreditLabel(r) + '</div></div>' +
     '</div>' +
     '<div class="L-meta"><div><b>Store</b>' + escapeHtml(storeName(r)) + '</div><div><b>Date</b>' + escapeHtml(fmtDate(r.date)) + '</div><div><b>Driver</b>' + escapeHtml(state.driver||"—") + '</div></div>' +
     '<table class="L-items"><thead><tr><th>Qty</th><th>Description</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>' + returnsRowsHtml(r) + '</tbody></table>' +
