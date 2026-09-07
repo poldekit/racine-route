@@ -12,7 +12,7 @@
 //
 // Bump CACHE_NAME whenever the app-shell file list changes, so returning
 // devices pick up the new set instead of serving a stale mix.
-var CACHE_NAME = "racine-route-shell-v2";
+var CACHE_NAME = "racine-route-shell-v3";
 var SHELL_FILES = [
   "./",
   "./index.html",
@@ -26,7 +26,20 @@ var SHELL_FILES = [
 self.addEventListener("install", function(event){
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(SHELL_FILES);
+      // NOT cache.addAll(SHELL_FILES) -- that uses default fetch caching,
+      // which means the *browser's own* HTTP cache (separate from this
+      // service worker's cache, and outside its control) can silently hand
+      // back a stale copy of a file GitHub Pages served a few minutes ago,
+      // even though CACHE_NAME changed and this install genuinely wants a
+      // fresh copy of everything. {cache:"reload"} forces each request all
+      // the way to the network, bypassing that HTTP cache -- this is very
+      // likely why the Sales Total fix didn't show up right after the v2
+      // bump even though the new index.html was already live on GitHub.
+      return Promise.all(SHELL_FILES.map(function(url){
+        return fetch(url, {cache: "reload"}).then(function(res){
+          return cache.put(url, res);
+        });
+      }));
     }).then(function(){
       return self.skipWaiting();
     })
