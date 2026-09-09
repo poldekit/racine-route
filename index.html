@@ -917,7 +917,16 @@ function dayTotals(receipts){
     paidCredit += Number(r.paidCredit)||0;
     returns += receiptTotalReturns(r);
   });
-  return {sales:sales, cash:cash, credit:credit, paidCredit:paidCredit, returns:returns};
+  // "Net Sales" -- the commission basis (per the owner: drivers are paid on
+  // net sales, i.e. gross Sales Total less Returns). Deliberately excludes
+  // Paid Credit -- that's cash collected against an OLDER, already-invoiced
+  // balance, not a new sale made today, so it shouldn't count twice toward
+  // commission. This is arithmetically identical to Cash + Credit above
+  // (see the reconciling identity in the comment above), computed directly
+  // here and surfaced under its own explicit label so it doesn't have to be
+  // hand-added from two other tiles at payroll time.
+  var netSales = sales - returns;
+  return {sales:sales, cash:cash, credit:credit, paidCredit:paidCredit, returns:returns, netSales:netSales};
 }
 
 // Monday–Sunday, computed in local time from a plain "YYYY-MM-DD" string
@@ -2108,6 +2117,7 @@ function buildWeeklySummaryCardHtml(range, days, receipts){
       : '<div class="section-sub" style="margin:0;">No stops yet this week.</div>') +
     '<div class="divider"></div>' +
     '<div class="totals-line grand" style="margin-bottom:2px;"><span>Week Sales Total</span><span class="tabular">' + fmtMoney(t.sales) + '</span></div>' +
+    '<div class="totals-line" style="margin-bottom:2px;"><span>Net Sales <span style="font-weight:400; opacity:.7;">(after returns &mdash; commission basis)</span></span><span class="tabular">' + fmtMoney(t.netSales) + '</span></div>' +
     '<div class="totals-line"><span>Cash / Check</span><span class="tabular">' + fmtMoney(t.cash) + '</span></div>' +
     '<div class="totals-line"><span>Credit (on account)</span><span class="tabular">' + fmtMoney(t.credit) + '</span></div>' +
     '<div class="totals-line"><span>Paid Credit</span><span class="tabular">' + fmtMoney(t.paidCredit) + '</span></div>' +
@@ -2132,6 +2142,7 @@ function buildSummaryHtml(t, creditRows, cashRows, paidRows, allReceipts){
 
   return (
     '<div class="totals-line grand" style="margin-bottom:2px;"><span>Sales Total</span><span class="tabular">' + fmtMoney(t.sales) + '</span></div>' +
+    '<div class="totals-line" style="margin-bottom:2px;"><span>Net Sales <span style="font-weight:400; opacity:.7;">(after returns &mdash; commission basis)</span></span><span class="tabular">' + fmtMoney(t.netSales) + '</span></div>' +
     tbl("Credit (on account)", creditRows, receiptTotal) +
     tbl("Paid Credit", paidRows, function(r){ return Number(r.paidCredit)||0; }) +
     tbl("Cash / Check", cashRows, receiptTotal) +
@@ -2183,6 +2194,7 @@ function buildSummary4inHtml(date, driver, receipts){
     '<div class="p-row"><span>Date: ' + escapeHtml(fmtDate(date)) + '</span></div>' +
     '<hr class="p-rule">' +
     '<div class="p-row p-total"><span>SALES TOTAL</span><span>' + fmtMoney(t.sales) + '</span></div>' +
+    '<div class="p-row"><span>Net Sales (after returns)</span><span>' + fmtMoney(t.netSales) + '</span></div>' +
     section("Credit (on account)", creditRows, receiptTotal) +
     section("Paid Credit", paidRows, function(r){ return Number(r.paidCredit)||0; }) +
     section("Cash / Check", cashRows, receiptTotal) +
@@ -2214,7 +2226,7 @@ function buildSummaryLetterHtml(date, driver, receipts){
       '<div class="L-doctitle"><div class="t">Daily Summary</div><div class="n">' + escapeHtml(fmtDate(date)) + '</div></div>' +
     '</div>' +
     '<div class="L-meta"><div><b>Driver</b>' + escapeHtml(driver||"—") + '</div><div><b>Stops</b>' + receipts.length + '</div></div>' +
-    '<div class="L-totals" style="width:100%; margin-bottom:6px;"><div class="row grand"><span>Sales Total</span><span>' + fmtMoney(t.sales) + '</span></div></div>' +
+    '<div class="L-totals" style="width:100%; margin-bottom:6px;"><div class="row grand"><span>Sales Total</span><span>' + fmtMoney(t.sales) + '</span></div><div class="row"><span>Net Sales (after returns)</span><span>' + fmtMoney(t.netSales) + '</span></div></div>' +
     section("Credit (on account)", creditRows, receiptTotal) +
     section("Paid Credit", paidRows, function(r){ return Number(r.paidCredit)||0; }) +
     section("Cash / Check", cashRows, receiptTotal) +
@@ -2250,6 +2262,7 @@ function buildWeekly4inHtml(range, driver, days, receipts){
     (dayRows || '<div class="p-row"><span>No stops this week</span></div>') +
     '<hr class="p-rule solid">' +
     '<div class="p-row p-total"><span>WEEK SALES TOTAL</span><span>' + fmtMoney(t.sales) + '</span></div>' +
+    '<div class="p-row"><span>Net Sales (after returns)</span><span>' + fmtMoney(t.netSales) + '</span></div>' +
     '<div class="p-row"><span>Cash / Check</span><span>' + fmtMoney(t.cash) + '</span></div>' +
     '<div class="p-row"><span>Credit (on account)</span><span>' + fmtMoney(t.credit) + '</span></div>' +
     '<div class="p-row"><span>Paid Credit</span><span>' + fmtMoney(t.paidCredit) + '</span></div>' +
@@ -2277,6 +2290,7 @@ function buildWeeklyLetterHtml(range, driver, days, receipts){
     dayTable +
     '<div class="L-totals" style="width:100%; margin-top:14px;">' +
       '<div class="row grand"><span>Week Sales Total</span><span>' + fmtMoney(t.sales) + '</span></div>' +
+      '<div class="row"><span>Net Sales (after returns)</span><span>' + fmtMoney(t.netSales) + '</span></div>' +
       '<div class="row"><span>Cash / Check</span><span>' + fmtMoney(t.cash) + '</span></div>' +
       '<div class="row"><span>Credit (on account)</span><span>' + fmtMoney(t.credit) + '</span></div>' +
       '<div class="row"><span>Paid Credit</span><span>' + fmtMoney(t.paidCredit) + '</span></div>' +
