@@ -1727,13 +1727,32 @@ function renderPdfBlob(bodyHtml, geom){
       // document -- without them, html2canvas can size its internal render
       // pass against the WRONG window (the main page's), silently cropping
       // the capture to the wrong width instead of the target's actual one.
+      // RENDER_SCALE: how many capture pixels per CSS px (2 = 192 DPI, 3 =
+      // 288 DPI). Was 2 -- Paul reported visibly soft/pixelated PDFs, even
+      // on-screen in Acrobat, not just when physically printed. Tested
+      // whether that was the JPEG compression (below) or the capture
+      // resolution itself by rendering the same page as lossless PNG at
+      // scale 2 -- it was JUST AS soft, which rules out compression and
+      // points squarely at resolution: html2canvas was only ever capturing
+      // 192 DPI, so no JPEG quality setting could sharpen pixels that were
+      // never captured at higher resolution in the first place. Bumped to
+      // 3 (288 DPI) -- confirmed visibly sharper text in a zoomed-crop
+      // comparison, while still ~15x smaller than an uncompressed capture.
+      var RENDER_SCALE = 3;
       html2canvas(target, {
-        scale: 2, backgroundColor: "#ffffff", useCORS: true,
+        scale: RENDER_SCALE, backgroundColor: "#ffffff", useCORS: true,
         width: target.scrollWidth, height: target.scrollHeight,
         windowWidth: target.scrollWidth, windowHeight: target.scrollHeight
       }).then(function(canvas){
         cleanup();
-        var contentHeightIn = (canvas.height / 2) / 96; // undo the scale:2, then px->in
+        // Must divide by the SAME scale passed to html2canvas above, not a
+        // hardcoded constant -- an earlier version of this fix hardcoded
+        // "/2" here (left over from when RENDER_SCALE was always 2), which
+        // would have silently miscalculated every PDF's page height the
+        // moment the capture scale changed. Caught before shipping by
+        // checking actual output PDF dimensions, not just eyeballing the
+        // image.
+        var contentHeightIn = (canvas.height / RENDER_SCALE) / 96; // undo the render scale, then px->in
         var pageHeightIn = contentHeightIn + geom.marginYIn*2;
         if(geom.minHeightIn) pageHeightIn = Math.max(pageHeightIn, geom.minHeightIn);
         var JsPdf = window.jspdf.jsPDF;
@@ -1752,8 +1771,12 @@ function renderPdfBlob(bodyHtml, geom){
         // of unique pixel values that PNG's DEFLATE can't compress well.
         // JPEG at a high quality is visually indistinguishable here but
         // routinely cuts these multi-page PDFs down to a fraction of the
-        // PNG size.
-        var imgData = canvas.toDataURL("image/jpeg", 0.92);
+        // PNG size. Quality bumped 0.92 -> 0.95 alongside the RENDER_SCALE
+        // increase above -- the resolution bump is what actually fixed the
+        // softness Paul reported, but a touch more JPEG headroom costs
+        // little extra size and avoids reintroducing compression artifacts
+        // at the new, sharper resolution.
+        var imgData = canvas.toDataURL("image/jpeg", 0.95);
         pdf.addImage(imgData, "JPEG", geom.marginXIn, geom.marginYIn, contentWidthIn, contentHeightIn);
         resolve(pdf.output("blob"));
       }).catch(function(err){ cleanup(); reject(err); });
