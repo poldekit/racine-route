@@ -36,10 +36,13 @@
   --wheat-soft:#EFD9A6;
   --good:#3F7D4C;
   --good-soft:#DCEADD;
+  --good-faint:#EDF5EC;
   --warn:#B4650F;
   --warn-soft:#F3E0C4;
   --neutral-soft:#E7DFCF;
   --danger:#A63A2E;
+  --danger-soft:#F3DBD5;
+  --danger-faint:#FAEDE8;
   --shadow: 0 1px 2px rgba(43,27,20,.06), 0 6px 20px -8px rgba(43,27,20,.18);
   --radius: 14px;
   --radius-sm: 9px;
@@ -62,10 +65,13 @@
     --wheat-soft:#4A3A1E;
     --good:#7CC98A;
     --good-soft:#1F3324;
+    --good-faint:#212B21;
     --warn:#E7A94C;
     --warn-soft:#3E2E14;
     --neutral-soft:#2E2619;
     --danger:#E37A6C;
+    --danger-soft:#3D211D;
+    --danger-faint:#2B211C;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -10px rgba(0,0,0,.6);
     color-scheme: dark;
   }
@@ -86,10 +92,13 @@
   --wheat-soft:#4A3A1E;
   --good:#7CC98A;
   --good-soft:#1F3324;
+  --good-faint:#212B21;
   --warn:#E7A94C;
   --warn-soft:#3E2E14;
   --neutral-soft:#2E2619;
   --danger:#E37A6C;
+  --danger-soft:#3D211D;
+  --danger-faint:#2B211C;
   --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -10px rgba(0,0,0,.6);
   color-scheme: dark;
 }
@@ -275,6 +284,36 @@ input,select,textarea{font-family:inherit;}
 .stepper button{width:32px; height:32px; border:none; background:var(--bg-sunken); color:var(--ink); font-size:17px; font-weight:700; cursor:pointer; line-height:1;}
 .stepper input{width:38px; border:none; text-align:center; font-size:14px; font-weight:700; background:transparent; color:var(--ink); padding:0;}
 .item-row .amt{width:58px; text-align:right; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:13px;}
+
+/* Items Delivered vs Items Returned -- these two lists used to be visually
+   identical (same layout, same colors), which was a real, reported mistake:
+   a driver tapping "+" meaning to charge a customer, but actually inside
+   the Returned list, issuing a credit instead. Each section now gets its
+   own color running through every layer -- the section label, the row
+   highlight the instant a quantity is entered (the exact moment the mix-up
+   happens), and the qty stepper border -- so the two are unmistakable at a
+   glance, not just distinguishable if you read the small-caps heading text. */
+.item-section{position:relative; padding-left:13px; margin-bottom:4px;}
+.item-section::before{content:""; position:absolute; left:0; top:1px; bottom:1px; width:3px; border-radius:3px;}
+.item-section-charge::before{background:var(--good);}
+.item-section-return::before{background:var(--danger);}
+.item-section .subhead{display:flex; align-items:center; gap:7px;}
+.item-section .subhead svg{flex:none;}
+.item-section-charge .subhead{color:var(--good);}
+.item-section-return .subhead{color:var(--danger);}
+.badge.charge{background:var(--good-soft); color:var(--good);}
+.badge.credit-out{background:var(--danger-soft); color:var(--danger);}
+/* Every row in each list carries its section's tint -- not just the ones
+   with a quantity entered -- so the two lists are unmistakable at a glance
+   even before you've tapped anything. Rows with a quantity entered get the
+   deeper shade on top, so there's still a clear "I just tapped +" signal
+   layered on top of the section color. */
+#rItemRows .item-row{background:var(--good-faint);}
+#rRetItemRows .item-row{background:var(--danger-faint);}
+#rItemRows .item-row.has-qty{background:var(--good-soft);}
+#rRetItemRows .item-row.has-qty{background:var(--danger-soft);}
+#rItemRows .stepper{border-color:var(--good);}
+#rRetItemRows .stepper{border-color:var(--danger);}
 
 .linetable{width:100%; border-collapse:collapse; font-size:13px;}
 .linetable th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); padding:4px 6px; border-bottom:1px solid var(--line);}
@@ -624,21 +663,39 @@ input,select,textarea{font-family:inherit;}
         <button type="button" class="btn-link-sm" id="btnEditInvoiceNo" style="background:none; border:none; padding:0; font-size:12px; color:var(--brick); text-decoration:underline; cursor:pointer;">Edit #</button>
       </div>
 
-      <div class="subhead" style="display:flex; justify-content:space-between; align-items:baseline;"><span>Items delivered</span><span class="section-sub" style="margin:0;" id="rDeliveredCount">0 items</span></div>
-      <input type="text" class="item-search" id="rSearch" placeholder="Search items&hellip;" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg-elev); font-size:14px;">
-      <div class="item-rows" id="rItemRows"></div>
-      <button class="btn btn-ghost btn-sm" id="btnAddCustomLine" style="margin-top:10px;">+ Add one-off item</button>
+      <div class="item-section item-section-charge">
+        <div class="subhead" style="justify-content:space-between;">
+          <span style="display:flex; align-items:center; gap:7px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 4v13M6 11l6 6 6-6"/></svg>
+            Items delivered
+            <span class="badge charge">Charges customer</span>
+          </span>
+          <span class="section-sub" style="margin:0; text-transform:none; letter-spacing:normal; font-weight:400;" id="rDeliveredCount">0 items</span>
+        </div>
+        <input type="text" class="item-search" id="rSearch" placeholder="Search items to deliver&hellip;" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg-elev); font-size:14px;">
+        <div class="item-rows" id="rItemRows"></div>
+        <button class="btn btn-ghost btn-sm" id="btnAddCustomLine" style="margin-top:10px;">+ Add one-off item</button>
+      </div>
 
       <div class="divider"></div>
-      <div class="subhead" style="display:flex; justify-content:space-between; align-items:baseline;"><span>Items returned</span><span class="section-sub" style="margin:0;" id="rReturnedCount">0 items</span></div>
-      <div class="section-sub" style="margin:-6px 2px 10px;">A separate list from what's above &mdash; use it for anything sent back today, whether or not it was part of this delivery.</div>
-      <div class="section-sub" style="margin:-2px 2px 10px; display:flex; align-items:baseline; gap:10px;" id="rReturnCreditNoWrap">
-        <span style="font-family:'IBM Plex Mono',monospace;" id="rReturnCreditNo"></span>
-        <button type="button" class="btn-link-sm" id="btnEditReturnCreditNo" style="background:none; border:none; padding:0; font-size:12px; color:var(--brick); text-decoration:underline; cursor:pointer;">Edit #</button>
+      <div class="item-section item-section-return">
+        <div class="subhead" style="justify-content:space-between;">
+          <span style="display:flex; align-items:center; gap:7px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5L3 11l6 6M3 11h12a6 6 0 010 12h-2"/></svg>
+            Items returned
+            <span class="badge credit-out">Issues a credit</span>
+          </span>
+          <span class="section-sub" style="margin:0; text-transform:none; letter-spacing:normal; font-weight:400;" id="rReturnedCount">0 items</span>
+        </div>
+        <div class="section-sub" style="margin:-6px 2px 10px;">A separate list from what's above &mdash; use it for anything sent back today, whether or not it was part of this delivery.</div>
+        <div class="section-sub" style="margin:-2px 2px 10px; display:flex; align-items:baseline; gap:10px;" id="rReturnCreditNoWrap">
+          <span style="font-family:'IBM Plex Mono',monospace;" id="rReturnCreditNo"></span>
+          <button type="button" class="btn-link-sm" id="btnEditReturnCreditNo" style="background:none; border:none; padding:0; font-size:12px; color:var(--brick); text-decoration:underline; cursor:pointer;">Edit #</button>
+        </div>
+        <input type="text" class="item-search" id="rRetSearch" placeholder="Search items being returned&hellip;" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg-elev); font-size:14px;">
+        <div class="item-rows" id="rRetItemRows"></div>
+        <button class="btn btn-ghost btn-sm" id="btnAddRetCustomLine" style="margin-top:10px;">+ Add one-off item</button>
       </div>
-      <input type="text" class="item-search" id="rRetSearch" placeholder="Search items&hellip;" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg-elev); font-size:14px;">
-      <div class="item-rows" id="rRetItemRows"></div>
-      <button class="btn btn-ghost btn-sm" id="btnAddRetCustomLine" style="margin-top:10px;">+ Add one-off item</button>
 
       <div class="totals-box">
         <div class="totals-line"><span>Subtotal</span><span class="tabular" id="rSubtotal">$0.00</span></div>
