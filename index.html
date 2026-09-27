@@ -267,6 +267,14 @@ input,select,textarea{font-family:inherit;}
 .seg button{flex:1; padding:10px 8px; background:var(--bg-elev); border:none; font-size:13px; font-weight:700; color:var(--ink-dim); cursor:pointer; border-right:1px solid var(--line);}
 .seg button:last-child{border-right:none;}
 .seg button.active{background:var(--brick); color:#fff;}
+/* How was this settled? starts with NEITHER button picked (see setSettle(null)
+   in openReceiptEditor) -- no default to silently leave in place. Real bug
+   this fixes: Cash/Check used to be pre-selected, and ~95% of Paul's stops
+   are actually On Account, so the common case was exactly the one most
+   likely to get left on the wrong setting by accident. .needs-choice draws
+   an amber outline (same visual language as the delivered/returned color
+   coding) until the driver actually taps one. */
+.seg.needs-choice{border-color:var(--warn); box-shadow:0 0 0 3px var(--warn-soft);}
 
 .divider{height:1px; background:var(--line-soft); margin:18px 0;}
 .subhead{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin:0 0 10px;}
@@ -710,9 +718,10 @@ input,select,textarea{font-family:inherit;}
       <div class="divider"></div>
       <div class="subhead">How was this settled?</div>
       <div class="seg" id="rSettleSeg">
-        <button data-v="cash" class="active">Cash / Check</button>
+        <button data-v="cash">Cash / Check</button>
         <button data-v="credit">On Account</button>
       </div>
+      <div class="section-sub" id="rSettleHint" style="margin:6px 2px 0; color:var(--warn); font-weight:700;">Tap one before saving</div>
 
       <div id="rCreditAckWrap" style="display:none; margin-top:14px;">
         <div class="help-note" style="margin-bottom:10px;">On-account sales get signed for, like the store copy today.</div>
@@ -1219,7 +1228,9 @@ function openReceiptEditor(id){
     draftReturnCreditNo = null;
     refreshReturnCreditNoDisplay();
     document.getElementById("rTax").value = 0;
-    setSettle("cash");
+    // No default -- see the setSettle() comment above. A new stop starts
+    // with neither Cash/Check nor On Account picked, forcing a conscious tap.
+    setSettle(null);
     document.getElementById("rAckName").value = "";
     document.getElementById("rAckDept").value = "";
     document.getElementById("rPaidCredit").value = 0;
@@ -1425,9 +1436,17 @@ function updateTotals(){
 document.getElementById("rTax").addEventListener("input", updateTotals);
 document.getElementById("rReturns").addEventListener("input", updateTotals);
 
-/* settle segment */
+/* settle segment
+   v can be "cash", "credit", or null/undefined -- null means "nothing
+   chosen yet" (the state a brand-new receipt starts in, see
+   openReceiptEditor's setSettle(null) below): neither button lights up, and
+   the amber needs-choice outline + hint text stay visible until the driver
+   actually taps one. Deliberately no default -- see the CSS comment above
+   #rSettleSeg for why a pre-picked default was the actual bug. */
 function setSettle(v){
-  document.querySelectorAll("#rSettleSeg button").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-v")===v); });
+  document.querySelectorAll("#rSettleSeg button").forEach(function(b){ b.classList.toggle("active", !!v && b.getAttribute("data-v")===v); });
+  document.getElementById("rSettleSeg").classList.toggle("needs-choice", !v);
+  document.getElementById("rSettleHint").style.display = v ? "none" : "block";
   var showCredit = v==="credit";
   document.getElementById("rCreditAckWrap").style.display = showCredit ? "block" : "none";
   if(showCredit){
@@ -1512,7 +1531,12 @@ function buildReceiptFromForm(){
   var lines = collectLines();
   var subtotal = lines.reduce(function(s,l){ return s+l.qty*l.price; },0);
   var tax = Number(document.getElementById("rTax").value)||0;
-  var settlement = document.querySelector("#rSettleSeg button.active").getAttribute("data-v");
+  // null when nothing has been tapped yet (a brand-new stop starts this
+  // way, see setSettle(null)) -- persistReceipt() blocks the save on this
+  // before it's ever used for anything real, so this stays null-safe rather
+  // than assuming a button is always active.
+  var settleBtn = document.querySelector("#rSettleSeg button.active");
+  var settlement = settleBtn ? settleBtn.getAttribute("data-v") : null;
   var sigData = null;
   if(sigHasDrawing && sigCtx){
     try{ sigData = document.getElementById("sigCanvas").toDataURL("image/png"); }catch(e){}
@@ -1556,14 +1580,21 @@ function buildReceiptFromForm(){
 }
 
 // True if some OTHER receipt (today or in history) already uses this
-// invoice number -- checked after any manual "Edit #" override, since
-// that's the one path that can introduce a collision on purpose (e.g.
-// backfilling a missing invoice) or by accident.
+// number -- checked after any manual "Edit #" override, since that's the
+// one path that can introduce a collision on purpose (e.g. backfilling a
+// missing invoice) or by accident. Checks BOTH fields on the other side --
+// a number is "used" if it matches another receipt's Delivery Invoice #
+// *or* its Return Credit # -- because a store that requires two different
+// numbers per stop (e.g. Tony's) means a hand-picked Return Credit # is
+// just as real a number in circulation as an invoice number, and the next
+// stop's auto-assigned invoice must never step on it.
 function invoiceNoUsedElsewhere(no, excludeId){
-  var hit = state.today.receipts.some(function(x){ return x.id!==excludeId && x.invoiceNo===no; });
-  if(hit) return true;
+  function matches(x){
+    return x.id!==excludeId && (x.invoiceNo===no || (x.returnCreditNo!=null && x.returnCreditNo===no));
+  }
+  if(state.today.receipts.some(matches)) return true;
   return state.history.some(function(day){
-    return (day.receipts||[]).some(function(x){ return x.id!==excludeId && x.invoiceNo===no; });
+    return (day.receipts||[]).some(matches);
   });
 }
 
@@ -1583,16 +1614,25 @@ function commitReceipt(r, onSaved){
   }
   var idx = state.today.receipts.findIndex(function(x){ return x.id===r.id; });
   if(idx>-1){ state.today.receipts[idx]=r; }
-  else{
-    state.today.receipts.push(r);
-    // Advance the counter past whatever number this receipt actually used.
-    // Usually that's just the old counter + 1 (the normal case). But if the
-    // number was hand-edited to something LOWER than the current counter
-    // (e.g. backfilling an invoice that's missing from today because of a
-    // technical issue, using the number that was already on paper), don't
-    // walk the counter backward -- only ever move it forward.
-    state.nextInvoiceNo = Math.max(state.nextInvoiceNo, r.invoiceNo + 1);
-  }
+  else{ state.today.receipts.push(r); }
+  // Advance the counter past whatever number(s) this receipt actually uses
+  // now -- the Delivery Invoice # AND, if the driver gave the Return Credit
+  // a separate number (e.g. Tony's, which requires the two to differ), that
+  // number too. Real bug this fixes: a driver bumping just the Return
+  // Credit # up to "the next one up" (since it isn't run through this
+  // counter on its own) used to leave nextInvoiceNo unchanged beyond the
+  // Delivery Invoice #+1 -- so the very next stop's auto-assigned invoice
+  // number could land exactly on the Return Credit # just handed to the
+  // previous store. Runs on every save, new or edited, since editing an
+  // existing receipt to add/raise a Return Credit # override later needs
+  // the same protection. Only ever moves forward -- a hand-edited LOWER
+  // number (e.g. backfilling a missing invoice with what's already on
+  // paper) must never walk the counter backward.
+  state.nextInvoiceNo = Math.max(
+    state.nextInvoiceNo,
+    r.invoiceNo + 1,
+    (r.returnCreditNo != null ? r.returnCreditNo + 1 : 0)
+  );
   saveState();
   onSaved(r);
 }
@@ -1609,14 +1649,36 @@ function persistReceipt(onSaved){
     // no-op, handled by store list build
   }
   var r = buildReceiptFromForm();
+  // Neither Cash/Check nor On Account was tapped (see setSettle(null) --
+  // a new stop starts with no default, deliberately, since the old
+  // pre-picked "Cash/Check" default was silently wrong on the ~95% of
+  // stops that are actually On Account). Block the save here rather than
+  // falling back to a guess, and draw the eye to exactly what needs a tap.
+  if(!r.settlement){
+    document.getElementById("rSettleSeg").classList.add("needs-choice");
+    document.getElementById("rSettleHint").style.display = "block";
+    document.getElementById("rSettleSeg").scrollIntoView({behavior:"smooth", block:"center"});
+    toast("Choose Cash / Check or On Account first");
+    return;
+  }
   if(!r.lines.length){
     toast("Add at least one item first");
     return;
   }
+  // Check the Delivery Invoice # first, then the Return Credit # too (only
+  // relevant when a driver gave it its own number, e.g. Tony's) -- either
+  // one colliding with a number already in use anywhere else is worth
+  // stopping for.
+  var conflictNo = null;
   if(invoiceNoUsedElsewhere(r.invoiceNo, r.id)){
+    conflictNo = r.invoiceNo;
+  } else if(r.returnCreditNo != null && invoiceNoUsedElsewhere(r.returnCreditNo, r.id)){
+    conflictNo = r.returnCreditNo;
+  }
+  if(conflictNo != null){
     confirmModal(
-      "Invoice #" + invoiceLabel(r.invoiceNo) + " is already in use",
-      "Another receipt today or in your history already uses this number. Save anyway, or Cancel to go back and edit the invoice number first.",
+      "Invoice #" + invoiceLabel(conflictNo) + " is already in use",
+      "Another receipt today or in your history already uses this number. Save anyway, or Cancel to go back and edit the number first.",
       function(){ commitReceipt(r, onSaved); }
     );
   } else {
