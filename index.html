@@ -574,6 +574,23 @@ input,select,textarea{font-family:inherit;}
     <button class="btn btn-primary" id="btnPrintWeekly">Print Weekly Summary</button>
 
     <div class="divider"></div>
+    <div class="subhead">Sales by Store and Day</div>
+    <div class="section-sub">Pick any date range &mdash; shows sales, returns, and net for each store on each day, with a total for the range.</div>
+    <div class="card">
+      <div class="row2" style="margin-bottom:0;">
+        <div class="field" style="margin-bottom:0;"><label>Start date</label><input type="date" id="sdStart"></div>
+        <div class="field" style="margin-bottom:0;"><label>End date</label><input type="date" id="sdEnd"></div>
+      </div>
+    </div>
+    <div style="height:10px;"></div>
+    <div class="card" id="storeDayCard"></div>
+    <div style="height:12px;"></div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btnPrintStoreDay">Print Report</button>
+      <button class="btn btn-secondary" id="btnCsvStoreDay">Download CSV</button>
+    </div>
+
+    <div class="divider"></div>
     <div class="subhead">Past Days</div>
     <div id="historyList" class="settings-list"></div>
   </div>
@@ -1025,6 +1042,48 @@ function receiptsAndDaysInWeek(dateStr){
   days.sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
   var receipts = days.reduce(function(a,d){ return a.concat(d.receipts); }, []);
   return {range: range, days: days, receipts: receipts};
+}
+
+// Arbitrary [startDate, endDate] (inclusive, plain "YYYY-MM-DD" strings) —
+// same today+history gathering as receiptsAndDaysInWeek above, just not
+// pinned to a Monday–Sunday week. Backs the "Sales by Store and Day" report.
+function daysInRange(startDate, endDate){
+  var days = [];
+  state.history.forEach(function(day){
+    if(day.date >= startDate && day.date <= endDate) days.push({date: day.date, receipts: day.receipts||[]});
+  });
+  if(state.today.date >= startDate && state.today.date <= endDate){
+    days.push({date: state.today.date, receipts: state.today.receipts});
+  }
+  days.sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+  return days;
+}
+
+// One row per store per day in range, receipts combined (a store with two
+// stops the same day -- e.g. a "second invoice" -- collapses into one row,
+// same as every other report in this app groups by day). sales/returns/net
+// use the exact same definitions as dayTotals() above: sales = gross
+// invoiced amount (ties to the printed Delivery Invoice), returns = total
+// return credit, net = sales - returns (the commission basis).
+function storeDayRows(startDate, endDate){
+  var days = daysInRange(startDate, endDate);
+  var map = {}, order = [];
+  days.forEach(function(day){
+    day.receipts.forEach(function(r){
+      var store = storeName(r);
+      var key = day.date + "\u0001" + store;
+      if(!map[key]){ map[key] = {date: day.date, store: store, sales:0, returns:0}; order.push(key); }
+      map[key].sales += receiptSubtotal(r) + (Number(r.tax)||0);
+      map[key].returns += receiptTotalReturns(r);
+    });
+  });
+  var rows = order.map(function(k){ return map[k]; });
+  rows.sort(function(a,b){
+    if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return a.store < b.store ? -1 : (a.store > b.store ? 1 : 0);
+  });
+  rows.forEach(function(r){ r.net = r.sales - r.returns; });
+  return rows;
 }
 
 /* ============================================================
@@ -1920,6 +1979,12 @@ function pdfExportInfoFor(kind, payload){
       filename: "Weekly Summary_" + payload.range.start + "_to_" + payload.range.end + ".pdf"
     };
   }
+  if(kind === "storeday"){
+    return {
+      bodyHtml: buildStoreDayLetterHtml(payload.start, payload.end, payload.driver, payload.rows),
+      filename: "Sales by Store and Day_" + payload.start + "_to_" + payload.end + ".pdf"
+    };
+  }
   return {
     bodyHtml: buildSummaryLetterHtml(payload.date, payload.driver, payload.receipts),
     filename: sanitizeFilename("Route Summary_" + payload.date) + ".pdf"
@@ -2036,6 +2101,7 @@ function runPrint(kind, payload, format){
   setTimeout(function(){
     if(kind==="receipt") printReceipt(payload, format);
     else if(kind==="weekly") printWeeklySummary(payload.range, payload.driver, payload.days, payload.receipts, format);
+    else if(kind==="storeday") printStoreDayReport(payload.start, payload.end, payload.driver, payload.rows, format);
     else printSummary(payload.date, payload.driver, payload.receipts, format);
   }, 700);
 }
@@ -2243,6 +2309,14 @@ function renderSummary(){
   var wk = receiptsAndDaysInWeek(state.today.date);
   document.getElementById("weeklySummaryCard").innerHTML = buildWeeklySummaryCardHtml(wk.range, wk.days, wk.receipts);
 
+  // Default the store/day range to this same Monday–Sunday week the first
+  // time this screen is shown, but never overwrite it on later visits --
+  // otherwise picking a custom range, then switching tabs and back, would
+  // silently reset it.
+  var sdStartEl = document.getElementById("sdStart"), sdEndEl = document.getElementById("sdEnd");
+  if(!sdStartEl.value){ sdStartEl.value = wk.range.start; sdEndEl.value = wk.range.end; }
+  renderStoreDayReport();
+
   renderHistoryList();
 }
 
@@ -2268,6 +2342,61 @@ function buildWeeklySummaryCardHtml(range, days, receipts){
 }
 
 document.getElementById("sumDriver").addEventListener("input", function(){ state.driver = this.value; saveState(); refreshTopbar(); });
+
+/* ============================================================
+   SALES BY STORE AND DAY -- custom date-range report
+   ============================================================ */
+function storeDayPickedRange(){
+  var start = document.getElementById("sdStart").value;
+  var end = document.getElementById("sdEnd").value;
+  if(start && end && start > end){ var tmp = start; start = end; end = tmp; document.getElementById("sdStart").value = start; document.getElementById("sdEnd").value = end; }
+  return {start: start, end: end};
+}
+
+function renderStoreDayReport(){
+  var range = storeDayPickedRange();
+  var card = document.getElementById("storeDayCard");
+  if(!range.start || !range.end){ card.innerHTML = '<div class="section-sub" style="margin:0;">Pick a start and end date.</div>'; return; }
+  card.innerHTML = buildStoreDayCardHtml(range.start, range.end, storeDayRows(range.start, range.end));
+}
+
+function buildStoreDayCardHtml(start, end, rows){
+  var totalSales=0, totalReturns=0, totalNet=0;
+  var body = rows.map(function(r){
+    totalSales += r.sales; totalReturns += r.returns; totalNet += r.net;
+    return '<tr><td>' + escapeHtml(fmtDate(r.date)) + '</td><td>' + escapeHtml(r.store) + '</td><td class="num">' + fmtMoney(r.sales) + '</td><td class="num">' + fmtMoney(r.returns) + '</td><td class="num">' + fmtMoney(r.net) + '</td></tr>';
+  }).join("");
+  return (
+    '<div class="section-sub" style="margin:0 0 10px;">' + escapeHtml(fmtDate(start)) + ' &ndash; ' + escapeHtml(fmtDate(end)) + '</div>' +
+    (rows.length
+      ? '<div style="overflow-x:auto;"><table class="summary-table"><thead><tr><th>Date</th><th>Store</th><th style="text-align:right;">Sales</th><th style="text-align:right;">Returns</th><th style="text-align:right;">Net Sales</th></tr></thead><tbody>' + body +
+        '<tr class="total-row"><td colspan="2">Total (' + rows.length + ' store-day' + (rows.length===1?"":"s") + ')</td><td class="num">' + fmtMoney(totalSales) + '</td><td class="num">' + fmtMoney(totalReturns) + '</td><td class="num">' + fmtMoney(totalNet) + '</td></tr></tbody></table></div>'
+      : '<div class="section-sub" style="margin:0;">No stops in this date range.</div>')
+  );
+}
+
+document.getElementById("sdStart").addEventListener("change", renderStoreDayReport);
+document.getElementById("sdEnd").addEventListener("change", renderStoreDayReport);
+
+document.getElementById("btnPrintStoreDay").addEventListener("click", function(){
+  var range = storeDayPickedRange();
+  if(!range.start || !range.end){ toast("Pick a start and end date first"); return; }
+  openPrintChoice("storeday", {start: range.start, end: range.end, driver: state.driver, rows: storeDayRows(range.start, range.end)});
+});
+
+document.getElementById("btnCsvStoreDay").addEventListener("click", function(){
+  var range = storeDayPickedRange();
+  if(!range.start || !range.end){ toast("Pick a start and end date first"); return; }
+  var rows = storeDayRows(range.start, range.end);
+  var filename = "Sales_by_Store_and_Day_" + range.start + "_to_" + range.end + ".csv";
+  downloadCsvOnly(filename, storeDayToCsvRows(rows));
+});
+
+function storeDayToCsvRows(rows){
+  var out = [["Date","Store","Sales","Returns","Net Sales"]];
+  rows.forEach(function(r){ out.push([r.date, r.store, r.sales.toFixed(2), r.returns.toFixed(2), r.net.toFixed(2)]); });
+  return out.map(function(row){ return row.map(function(c){ var s=String(c); return /[",]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(","); }).join("\r\n");
+}
 
 function buildSummaryHtml(t, creditRows, cashRows, paidRows, allReceipts){
   function tbl(title, rows, amountFn){
@@ -2437,6 +2566,69 @@ function buildWeeklyLetterHtml(range, driver, days, receipts){
       '<div class="row"><span>Credit (on account)</span><span>' + fmtMoney(t.credit) + '</span></div>' +
       '<div class="row"><span>Paid Credit</span><span>' + fmtMoney(t.paidCredit) + '</span></div>' +
       '<div class="row"><span>Returns</span><span>' + fmtMoney(t.returns) + '</span></div>' +
+    '</div>' +
+    '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+  );
+}
+
+function printStoreDayReport(start, end, driver, rows, format){
+  format = format || "4in";
+  var area = document.getElementById("printArea");
+  area.className = format==="letter" ? "fmt-letter" : "fmt-4in";
+  setPageSize(format);
+  applyPrintAdjust(area, format);
+  area.innerHTML = format==="letter" ? buildStoreDayLetterHtml(start, end, driver, rows) : buildStoreDay4inHtml(start, end, driver, rows);
+  setPrintTitle("Sales by Store and Day - " + start + " to " + end + (driver ? " - " + driver : ""));
+  triggerPrint();
+}
+
+function storeDayTotals(rows){
+  var sales=0, returns=0;
+  rows.forEach(function(r){ sales += r.sales; returns += r.returns; });
+  return {sales: sales, returns: returns, net: sales - returns};
+}
+
+function buildStoreDay4inHtml(start, end, driver, rows){
+  var t = storeDayTotals(rows);
+  var body = rows.map(function(r){
+    return '<div class="p-row" style="font-weight:700; margin-top:4px;"><span>' + escapeHtml(fmtDate(r.date)) + '</span><span>' + escapeHtml(r.store) + '</span></div>' +
+      '<div class="p-row"><span>Sales ' + fmtMoney(r.sales) + '</span><span>Returns ' + fmtMoney(r.returns) + '</span></div>' +
+      '<div class="p-row"><span>Net ' + fmtMoney(r.net) + '</span><span></span></div>';
+  }).join("");
+  return (
+    '<div class="p-center">' + printLogoImg('p-logo') + '<div class="p-name">Sales by Store and Day</div><div class="p-addr">' + escapeHtml(BAKERY.name) + '</div></div>' +
+    '<hr class="p-rule solid">' +
+    '<div class="p-row"><span>Driver: ' + escapeHtml(driver||"") + '</span></div>' +
+    '<div class="p-row"><span>Range: ' + escapeHtml(fmtDate(start)) + ' &ndash; ' + escapeHtml(fmtDate(end)) + '</span></div>' +
+    '<hr class="p-rule">' +
+    (body || '<div class="p-row"><span>No stops in this range</span></div>') +
+    '<hr class="p-rule solid">' +
+    '<div class="p-row p-total"><span>SALES TOTAL</span><span>' + fmtMoney(t.sales) + '</span></div>' +
+    '<div class="p-row"><span>Returns</span><span>' + fmtMoney(t.returns) + '</span></div>' +
+    '<div class="p-row p-total"><span>NET SALES</span><span>' + fmtMoney(t.net) + '</span></div>' +
+    '<div class="p-foot">' + rows.length + ' store-day' + (rows.length===1?"":"s") + ' &middot; printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+  );
+}
+
+function buildStoreDayLetterHtml(start, end, driver, rows){
+  var t = storeDayTotals(rows);
+  var body = rows.map(function(r){
+    return '<tr><td>' + escapeHtml(fmtDate(r.date)) + '</td><td>' + escapeHtml(r.store) + '</td><td class="num">' + fmtMoney(r.sales) + '</td><td class="num">' + fmtMoney(r.returns) + '</td><td class="num">' + fmtMoney(r.net) + '</td></tr>';
+  }).join("");
+  var table = rows.length
+    ? '<table class="L-items"><thead><tr><th>Date</th><th>Store</th><th class="num">Sales</th><th class="num">Returns</th><th class="num">Net Sales</th></tr></thead><tbody>' + body + '</tbody></table>'
+    : '<div style="font-size:10pt; color:#8a7a64;">No stops in this range</div>';
+  return (
+    '<div class="L-head">' +
+      '<div><div class="L-brandrow">' + printLogoImg('L-logo') + '<div class="L-brand">Sales by Store and Day</div></div><div class="L-addr">' + escapeHtml(BAKERY.name) + '</div></div>' +
+      '<div class="L-doctitle"><div class="t">Sales Report</div><div class="n">' + escapeHtml(fmtDate(start)) + ' &ndash; ' + escapeHtml(fmtDate(end)) + '</div></div>' +
+    '</div>' +
+    '<div class="L-meta"><div><b>Driver</b>' + escapeHtml(driver||"—") + '</div><div><b>Store-days</b>' + rows.length + '</div></div>' +
+    table +
+    '<div class="L-totals" style="width:100%; margin-top:14px;">' +
+      '<div class="row"><span>Sales Total</span><span>' + fmtMoney(t.sales) + '</span></div>' +
+      '<div class="row"><span>Returns</span><span>' + fmtMoney(t.returns) + '</span></div>' +
+      '<div class="row grand"><span>Net Sales</span><span>' + fmtMoney(t.net) + '</span></div>' +
     '</div>' +
     '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
   );
@@ -2728,6 +2920,35 @@ function showBackupFallback(filenameBase, jsonData, csvData){
     '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;"><button class="btn btn-secondary" id="modalCloseBtn">Close</button></div>';
   document.getElementById("modalCloseBtn").onclick = closeModal;
   openModal();
+}
+
+// CSV-only counterpart to tryDownload() above -- same staged fallback
+// (platform "downloads" capability, then a plain <a download>, then a
+// copy/paste modal) but for a single CSV file with no JSON backup half.
+function showCsvFallback(filename, csvData){
+  var body = document.getElementById("modalBody");
+  body.innerHTML =
+    '<h3>Download CSV</h3>' +
+    '<div class="section-sub" style="margin:0 0 10px;">Automatic download isn\'t available here. Copy this and save it as <b>' + escapeHtml(filename) + '</b>.</div>' +
+    '<textarea readonly style="width:100%; height:220px; font-family:\'IBM Plex Mono\',monospace; font-size:11px; padding:10px; border-radius:8px; border:1px solid var(--line);">' + escapeHtml(csvData) + '</textarea>' +
+    '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;"><button class="btn btn-secondary" id="modalCloseBtn">Close</button></div>';
+  document.getElementById("modalCloseBtn").onclick = closeModal;
+  openModal();
+}
+
+async function downloadCsvOnly(filename, csvData){
+  var claudeApi = (typeof window !== "undefined") ? window.claude : null;
+  var downloads = null;
+  if(claudeApi && claudeApi.use){
+    try{ downloads = await claudeApi.use("downloads"); }catch(e){ downloads = null; }
+  }
+  if(downloads){
+    try{ await downloads.save({filename: filename, data: csvData}); toast("Saved " + filename); return; }catch(e){
+      if(e && e.code === "declined") return;
+    }
+  }
+  if(downloadFile(filename, csvData, "text/csv")){ toast("Downloading " + filename); return; }
+  showCsvFallback(filename, csvData);
 }
 
 document.getElementById("btnBackupDay").addEventListener("click", function(){
