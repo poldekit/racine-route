@@ -598,6 +598,7 @@ input,select,textarea{font-family:inherit;}
   <!-- ===== SETTINGS ===== -->
   <div class="screen" id="screen-settings">
     <div class="section-title">Settings</div>
+    <div class="section-sub" id="appVersionLine" style="margin:-8px 2px 12px;">&nbsp;</div>
 
     <div class="card" style="display:flex; flex-direction:column; gap:10px;">
       <div class="field" style="margin-bottom:0;"><label>Driver name</label><input type="text" id="setDriver" placeholder="e.g. Simon"></div>
@@ -817,6 +818,12 @@ input,select,textarea{font-family:inherit;}
    STATE
    ============================================================ */
 var STORAGE_KEY = "racineRouteApp_v2";
+// Visible app version -- shown in Settings and printed on every report
+// footer, so it's obvious at a glance (without checking file dates or
+// asking) whether a device has actually picked up the latest update after
+// a GitHub upload + force-quit/reopen, instead of guessing from symptoms.
+// Bump this alongside sw.js's CACHE_NAME on every shipped change.
+var APP_VERSION = "v11";
 var BAKERY = {
   name: "Racine Bakery & Delicatessen",
   addr1: "6216 South Archer Avenue",
@@ -2472,7 +2479,7 @@ function buildSummary4inHtml(date, driver, receipts){
     section("Returns", returnsRows, receiptTotalReturns) +
     '<hr class="p-rule solid">' +
     '<div class="p-row p-total"><span>Cash in hand</span><span>' + fmtMoney(t.cash+t.paidCredit) + '</span></div>' +
-    '<div class="p-foot">' + receipts.length + ' stop' + (receipts.length===1?"":"s") + ' &middot; printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+    '<div class="p-foot">' + receipts.length + ' stop' + (receipts.length===1?"":"s") + ' &middot; printed ' + escapeHtml(new Date().toLocaleString()) + ' &middot; App ' + APP_VERSION + '</div>'
   );
 }
 
@@ -2503,7 +2510,7 @@ function buildSummaryLetterHtml(date, driver, receipts){
     section("Cash / Check", cashRows, receiptTotal) +
     section("Returns", returnsRows, receiptTotalReturns) +
     '<div class="L-totals" style="width:100%; margin-top:14px;"><div class="row grand"><span>Cash in hand</span><span>' + fmtMoney(t.cash+t.paidCredit) + '</span></div></div>' +
-    '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+    '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + ' &middot; App ' + APP_VERSION + '</div>'
   );
 }
 
@@ -2538,7 +2545,7 @@ function buildWeekly4inHtml(range, driver, days, receipts){
     '<div class="p-row"><span>Credit (on account)</span><span>' + fmtMoney(t.credit) + '</span></div>' +
     '<div class="p-row"><span>Paid Credit</span><span>' + fmtMoney(t.paidCredit) + '</span></div>' +
     '<div class="p-row"><span>Returns</span><span>' + fmtMoney(t.returns) + '</span></div>' +
-    '<div class="p-foot">' + receipts.length + ' stop' + (receipts.length===1?"":"s") + ' this week &middot; printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+    '<div class="p-foot">' + receipts.length + ' stop' + (receipts.length===1?"":"s") + ' this week &middot; printed ' + escapeHtml(new Date().toLocaleString()) + ' &middot; App ' + APP_VERSION + '</div>'
   );
 }
 
@@ -2567,7 +2574,7 @@ function buildWeeklyLetterHtml(range, driver, days, receipts){
       '<div class="row"><span>Paid Credit</span><span>' + fmtMoney(t.paidCredit) + '</span></div>' +
       '<div class="row"><span>Returns</span><span>' + fmtMoney(t.returns) + '</span></div>' +
     '</div>' +
-    '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+    '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + ' &middot; App ' + APP_VERSION + '</div>'
   );
 }
 
@@ -2606,7 +2613,7 @@ function buildStoreDay4inHtml(start, end, driver, rows){
     '<div class="p-row p-total"><span>SALES TOTAL</span><span>' + fmtMoney(t.sales) + '</span></div>' +
     '<div class="p-row"><span>Returns</span><span>' + fmtMoney(t.returns) + '</span></div>' +
     '<div class="p-row p-total"><span>NET SALES</span><span>' + fmtMoney(t.net) + '</span></div>' +
-    '<div class="p-foot">' + rows.length + ' store-day' + (rows.length===1?"":"s") + ' &middot; printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+    '<div class="p-foot">' + rows.length + ' store-day' + (rows.length===1?"":"s") + ' &middot; printed ' + escapeHtml(new Date().toLocaleString()) + ' &middot; App ' + APP_VERSION + '</div>'
   );
 }
 
@@ -2630,7 +2637,7 @@ function buildStoreDayLetterHtml(start, end, driver, rows){
       '<div class="row"><span>Returns</span><span>' + fmtMoney(t.returns) + '</span></div>' +
       '<div class="row grand"><span>Net Sales</span><span>' + fmtMoney(t.net) + '</span></div>' +
     '</div>' +
-    '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + '</div>'
+    '<div class="L-foot">Printed ' + escapeHtml(new Date().toLocaleString()) + ' &middot; App ' + APP_VERSION + '</div>'
   );
 }
 
@@ -3112,6 +3119,7 @@ document.getElementById("btnHelp").addEventListener("click", openHelpGuide);
 /* ============================================================
    INIT
    ============================================================ */
+document.getElementById("appVersionLine").textContent = "App version: " + APP_VERSION;
 refreshTopbar();
 renderToday();
 if(!state.seenHelp){
